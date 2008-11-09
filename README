@@ -1,0 +1,19 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=2434
+
+Side-C is a small plug-in implementing basic IDE functionality for developing one-file C or C++ programs.  It automates the following actions.
+
+* Finding the program file among several open (so that to know what to compile or what and where to run).
+
+* Building a program from its source.  The error message ('quickfix') window is being shown or hidden as needed.
+
+* Running a program from wherever it resides.  Building it first if necessary.
+
+* Running a program with redirecting its standard input, output, or both.
+
+* Opening a browser for the directory of the currently edited file.
+
+* Running an o.s. command shell in the directory of the currently edited file.
+
+The plug-in is designed and tested to work on Linux and MS DOS/MS Windows, using gcc on both (DJGPP in the case of MS Windows).  It should work on other Unix systems as well.  With small changes, it should be possible to tailor it to other operating systems and compilers.
+
+See the comments in the plug-in itself for more details.
