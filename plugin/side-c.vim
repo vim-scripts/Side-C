@@ -1,7 +1,7 @@
 " Title: Side-C (a simple IDE for C/C++)
 " Maintainer: Boyko Bantchev <boykobb@gmail.com>
 " URI: http://www.math.bas.bg/bantchev/vim/side-c.vim
-" Version: 1.0 / 2008 November 9
+" Version: 1.1 / 2008 November 12
 " Usage: Source this file (:so side-c.vim), or put it in a plugin directory,
 "        then use the key mappings and the menu
 
@@ -86,7 +86,7 @@
 " The "Run" command is executed by first compiling & linking if necessary.
 " Building the executable file takes place if such a file does not currently
 " exist in the directory of the source file, or if it is older than the source
-" (which may be due to the source file being automatically saved, as decribed
+" (which may be due to the source file being automatically saved, as described
 " above).  When compiling fails due to syntax errors in the source file, the
 " program is not run.
 "
@@ -142,14 +142,17 @@ let g:loaded_sidec = 1
 let s:ccUnix = 'gcc'          " compiler call name for C
 let s:ccppUnix = 'g++'        " compiler call name for C++
 let s:coptionsUnix = '-Wall'  " compiler options
-let s:cexeUnix = '-o\ %:r'    " output file name specifier
+let s:cexeUnix = '-o %:r'     " output file name specifier
 
 " compiler settings for djgpp-gcc (Windows or DOS32)
 let s:ccWin = 'gcc'           " compiler call name for C
 let s:ccppWin = 'gxx'         " compiler call name for C++
 let s:coptionsWin = '-Wall'   " compiler options
-let s:cexeWin = '-o\ %:r.exe' " output file name specifier
+let s:cexeWin = '-o %:r.exe'  " output file name specifier
 " -------------------------------------------------------
+
+set shellslash
+set shellpipe=2>&1\ >%s
 
 " O.s. DOS/Windows?
 fu! s:isWindows()
@@ -157,35 +160,14 @@ fu! s:isWindows()
 endfu
 
 " Print an error message
-fu! s:prerr(msg)
+fu! s:prErr(msg)
   echohl errormsg | echo a:msg | echohl none
 endfu
 
 " The full name of a file or a directory: either it is already one,
 " or append getcwd().'/' at its front
 fu! s:getFullName(fn)
-  return (s:isWindows() ? a:fn[1]==':' : a:fn[0]=='/') ?
-       \ a:fn : getcwd().'/'.a:fn
-endfu
-
-" The path of a file, including the trailing '/'
-fu! s:fPath(fn)
-  return a:fn[:strridx(a:fn,'/')]
-endfu
-
-" The proper name of a file
-fu! s:fName(fn)
-  return a:fn[1+strridx(a:fn,'/'):]
-endfu
-
-" The filename without extension (but possibly with a path)
-fu! s:fNExt(fn)
-  return a:fn[:strridx(a:fn,'.')-1]
-endfu
-
-" The extension of a filename
-fu! s:fExt(fn)
-  return a:fn[1+strridx(a:fn,'.'):]
+  return (a:fn[0]=='/' || a:fn[1]==':') ? a:fn : getcwd().'/'.a:fn
 endfu
 
 " Find a program on the current tab page.  If sv, position the cursor there, and save if file changed.
@@ -195,12 +177,12 @@ fu! s:getFile(sv)
   let l:fnu = 0
 " check if there is precisely one C (.c) or C++ (.cc .c++ .cpp .cxx) file in the tab page
   for l:i in l:bufnums
-    if tolower(bufname(l:i)) =~# '\.c\(c\|\(\([+px]\)\3\)\)\?$'
-      if l:fnu>0 | call s:prerr('Error: more than one program file open') | return '' | endif
+    if !isdirectory(bufname(l:i)) && tolower(bufname(l:i)) =~# '\.c\(c\|\(\([+px]\)\3\)\)\?$'
+      if l:fnu>0 | call s:prErr('Error: more than one program file open') | return '' | endif
       let l:fnu = l:i
     endif
   endfor
-  if l:fnu==0 | call s:prerr('Error: no program file open') | return '' | endif
+  if l:fnu==0 | call s:prErr('Error: no program file open') | return '' | endif
   if a:sv
 " go to a program window if currently not there
     if l:fnu != winbufnr(0)
@@ -220,17 +202,22 @@ endfu
 fu! s:comlink(fn)
   let l:fn = empty(a:fn) ? s:getFile(1) : a:fn
   if empty(l:fn) | return 0 | endif
+  let l:ext = tolower(l:fn[1+strridx(l:fn,'.'):])   " the filename extension
   if s:isWindows()
-    let l:cc = tolower(s:fExt(l:fn)) == 'c' ? s:ccWin : s:ccppWin
+    let l:cc = l:ext=='c' ? s:ccWin : s:ccppWin
     let l:fe = s:cexeWin
     let l:opts = s:coptionsWin
   else
-    let l:cc = tolower(s:fExt(l:fn)) == 'c' ? s:ccUnix : s:ccppUnix
+    let l:cc = l:ext=='c' ? s:ccUnix : s:ccppUnix
     let l:fe = s:cexeUnix
     let l:opts = s:coptionsUnix
   endif
-  exe 'set makeprg='.l:cc.'\ '.l:fe.'\ '.l:opts.'\ %'
-  make
+  let l:save_makeprg = &makeprg
+  exe 'set makeprg='.l:cc
+  let l:fe = substitute(l:fe,'%:r',"'%:r'",'') . ' ' . l:opts . " '%'"
+  if s:isWindows() | let l:fe = substitute(l:fe,"'",'"','g') | endif
+  exe 'make '.l:fe
+  exe 'set makeprg='.escape(l:save_makeprg,' ')
   cwindow
   return empty(getqflist())
 endfu
@@ -243,17 +230,14 @@ endfu
 "   2 -- run >out;
 "   3 -- run <in >out;
 "   4 -- run on a selection.
-" Building and focus transfer across windows only take place in modes >0
+" Building and focus transfer across windows only take place in mode==0
 fu! s:brun(mode)
 " find a program file; possibly move there
-  let l:loc = 1
-  if a:mode>0 | let l:loc = 0 | endif
-  let l:sfn = s:getFile(l:loc)
+  let l:sfn = s:getFile(a:mode==0)
   if empty(l:sfn) | return | endif
-" find pathname, proper name, exec name
-  let l:path = s:fPath(l:sfn)
-  let l:pfn = s:fName(l:sfn)
-  let l:efn = l:path.s:fNExt(l:pfn)
+" find pathname & exec name
+  let l:path = l:sfn[:strridx(l:sfn,'/')]
+  let l:efn = l:sfn[:strridx(l:sfn,'.')-1]
   if s:isWindows() | let l:efn .= '.exe' | endif
 " compile if a:mode==0 and exe old or non-existing
   if a:mode==0 && getftime(l:sfn)>getftime(l:efn)
@@ -264,7 +248,7 @@ fu! s:brun(mode)
   let l:fnout = l:path.'out'
 " check if input available for modes 1 and 3
   if (a:mode == 1 || a:mode == 3) && getftime(l:fnin)<0
-    call s:prerr('Error: no file '.l:fnin.' found') | return
+    call s:prErr('Error: no file '.l:fnin.' found') | return
   endif
 " Note.  Mode 4 also has an input but, rather than being checked, this mode
 " is prevented from entering except when there is a selection
@@ -272,31 +256,28 @@ fu! s:brun(mode)
 " adapt for Windows
   if s:isWindows() | set shellcmdflag=/C| endif
 " prepare the calling string and `execute' it
-  let l:efn = a:mode==1 ? '!"'.l:efn.'" <"'.l:fnin.'"'
-          \ : a:mode==2 ? '!"'.l:efn.'" >"'.l:fnout.'"'
-          \ : a:mode==3 ? '!"'.l:efn.'" <"'.l:fnin.'" >"'.l:fnout.'"'
-          \ : a:mode==4 ? "'<,'>!\"".l:efn.'"'
-          \ :             '!"'.l:efn.'"'
-  exe l:efn
-  exe 'set shellcmdflag='.l:save_shellcmdflag
+  let l:adr = a:mode==4 ? "'<,'>" : ''
+  let l:cmd = "!'".l:efn."'"
+  let l:cmd .= a:mode==1 ? " <'".l:fnin."'"
+           \ : a:mode==2 ? " >'".l:fnout."'"
+           \ : a:mode==3 ? " <'".l:fnin."' >'".l:fnout."'"
+           \ :             ''
+  if s:isWindows() | let l:cmd = substitute(l:cmd,"'",'"','g') | endif
+  exe l:adr.l:cmd
+  exe 'set shellcmdflag='.escape(l:save_shellcmdflag,' ')
 endfu
 
 " Open a window that lists the directory of the file in the current window.
 " If the current window is a directory listing, another copy of it is open.
 " If the current window hosts an unnamed buffer, Vim's current directory is listed
 fu! s:lsDir()
-  let l:fn = bufname('')
-  let l:fn = empty(l:fn) ? getcwd() : s:getFullName(l:fn)
-  if (!isdirectory(l:fn)) | let l:fn = s:fPath(l:fn) | endif
-  exe 'vs '.escape(l:fn,' ')
+  exe 'vs ' . (empty(@%) ? '.' : escape(expand('%:p:h'),' '))
 endfu
 
 " Run a shell in the directory of the current file.
 " If the current window hosts an unnamed buffer, Vim's current directory is used
 fu! s:runShell()
-  let l:fn = bufname('')
-  let l:fn = empty(l:fn) ? getcwd() : s:getFullName(l:fn)
-  if (!isdirectory(l:fn)) | let l:fn = s:fPath(l:fn) | endif
+  let l:fn = empty(@%) ? getcwd() : expand('%:p:h')
   let l:save_shellcmdflag = &shellcmdflag
   if s:isWindows()
     set shellcmdflag=/K
@@ -306,15 +287,12 @@ fu! s:runShell()
     set shellcmdflag=-c
     exe "!cd '".l:fn."' && ".&shell
   endif
-  exe 'set shellcmdflag='.l:save_shellcmdflag
+  exe 'set shellcmdflag='.escape(l:save_shellcmdflag,' ')
 endfu
-
-set shellslash
-set shellpipe=>%s\ 2>&1
 
 fu! s:srun(from)
   if a:from == 'v' | call s:brun(4)
-  else | call s:prerr('Error: no visual selection in the current file') | endif
+  else | call s:prErr('Error: no visual selection in the current file') | endif
 endfu
 
 noremap <F7> :call <SID>comlink('')<CR>
@@ -322,7 +300,7 @@ noremap <F5> :call <SID>brun(0)<CR>
 noremap <A-1> :call <SID>brun(1)<CR>
 noremap <A-2> :call <SID>brun(2)<CR>
 noremap <A-3> :call <SID>brun(3)<CR>
-vnoremap <A-4> :call <SID>srun('v')<CR>
+vnoremap <silent> <A-4> :call <SID>srun('v')<CR>
 nnoremap <A-4> :call <SID>srun('n')<CR>
 onoremap <A-4> :call <SID>srun('n')<CR>
 noremap <C-D> :call <SID>lsDir()<CR>
@@ -335,7 +313,7 @@ anoremenu 100.21 &C/C++.-sep2- :
 anoremenu 100.30 &C/C++.Run\ with\ <in<Tab>Alt-1 :call <SID>brun(1)<CR>
 anoremenu 100.40 &C/C++.Run\ with\ >out<Tab>Alt-2 :call <SID>brun(2)<CR>
 anoremenu 100.50 &C/C++.Run\ with\ <in\ >out<Tab>Alt-3 :call <SID>brun(3)<CR>
-vnoremenu 100.60 &C/C++.Run\ on\ a\ Selection<Tab>Alt-4 :call <SID>brun(4)<CR>
+vnoremenu <silent> 100.60 &C/C++.Run\ on\ a\ Selection<Tab>Alt-4 :call <SID>brun(4)<CR>
 anoremenu 100.61 &C/C++.-sep3- :
 anoremenu 100.70 &C/C++.List\ a\ Directory<Tab>Ctrl-D :call <SID>lsDir()<CR>
 anoremenu 100.71 &C/C++.-sep4- :
