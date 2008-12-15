@@ -1,7 +1,7 @@
 " Title: Side-C (a simple IDE for C/C++)
 " Maintainer: Boyko Bantchev <boykobb@gmail.com>
 " URI: http://www.math.bas.bg/bantchev/vim/side-c.vim
-" Version: 1.1 / 2008 November 12
+" Version: 1.1+ / 2008 December 15
 " Usage: Source this file (:so side-c.vim), or put it in a plugin directory,
 "        then use the key mappings and the menu
 
@@ -152,7 +152,7 @@ let s:cexeWin = '-o %:r.exe'  " output file name specifier
 " -------------------------------------------------------
 
 set shellslash
-set shellpipe=2>&1\ >%s
+set shellpipe=>%s\ 2>&1
 
 " O.s. DOS/Windows?
 fu! s:isWindows()
