@@ -1,7 +1,7 @@
 " Title: Side-C (a simple IDE for C/C++)
 " Maintainer: Boyko Bantchev <boykobb@gmail.com>
 " URI: http://www.math.bas.bg/bantchev/vim/side-c.vim
-" Version: 1.1+ / 2008 December 15
+" Version: 1.1+(3) / 2011 January 13
 " Usage: Source this file (:so side-c.vim), or put it in a plugin directory,
 "        then use the key mappings and the menu
 
@@ -139,16 +139,16 @@ let g:loaded_sidec = 1
 " Change the following compiler settings if necessary
 
 " compiler settings for Linux and other gcc-based systems
-let s:ccUnix = 'gcc'          " compiler call name for C
-let s:ccppUnix = 'g++'        " compiler call name for C++
-let s:coptionsUnix = '-Wall'  " compiler options
-let s:cexeUnix = '-o %:r'     " output file name specifier
+let s:ccUnix = 'gcc'                         " compiler call name for C
+let s:ccppUnix = 'g++'                       " compiler call name for C++
+let s:coptionsUnix = '-Wall -lm -std=c++0x'  " compiler/linker options
+let s:cexeUnix = '-o %:r'                    " output file name specifier
 
 " compiler settings for djgpp-gcc (Windows or DOS32)
-let s:ccWin = 'gcc'           " compiler call name for C
-let s:ccppWin = 'gxx'         " compiler call name for C++
-let s:coptionsWin = '-Wall'   " compiler options
-let s:cexeWin = '-o %:r.exe'  " output file name specifier
+let s:ccWin = 'gcc'                      " compiler call name for C
+let s:ccppWin = 'gxx'                    " compiler call name for C++
+let s:coptionsWin = '-Wall -std=c++0x'   " compiler options
+let s:cexeWin = '-o %:r.exe'             " output file name specifier
 " -------------------------------------------------------
 
 set shellslash
